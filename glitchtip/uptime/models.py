@@ -11,26 +11,39 @@ from .constants import MonitorCheckReason, MonitorType
 
 
 class MonitorManager(models.Manager):
-    def with_check_annotations(self):
+    def with_check_annotations(self, on_update=False):
         """
         Adds MonitorCheck annotations:
         latest_is_up - Most recent check is_up result
         last_change - Most recent check where is_up state changed
+        last_change_on_update: Same idea as last_change, but handled differently when monitor has not yet been updated (for alerts).
         Example: Monitor state: { latest_is_up } since { last_change }
         """
-        return self.annotate(
+        initial_annotation = self.annotate(
             latest_is_up=Subquery(
                 MonitorCheck.objects.filter(monitor_id=OuterRef("id"))
                 .order_by("-start_check")
                 .values("is_up")[:1]
-            ),
-            last_change=Subquery(
-                MonitorCheck.objects.filter(monitor_id=OuterRef("id"))
-                .exclude(is_up=OuterRef("latest_is_up"))
-                .order_by("-start_check")
-                .values("start_check")[:1]
-            ),
+            )
         )
+        if on_update:
+            return initial_annotation.annotate(
+                last_change_on_update=Subquery(
+                    MonitorCheck.objects.filter(monitor_id=OuterRef("id"))
+                    .filter(is_up=OuterRef("latest_is_up"))
+                    .order_by("-start_check")
+                    .values("start_check")[:1]
+                )
+            )
+        else:
+            return initial_annotation.annotate(
+                last_change=Subquery(
+                    MonitorCheck.objects.filter(monitor_id=OuterRef("id"))
+                    .exclude(is_up=OuterRef("latest_is_up"))
+                    .order_by("-start_check")
+                    .values("start_check")[:1]
+                )
+            )
 
 
 class Monitor(CreatedModel):
