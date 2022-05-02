@@ -1,5 +1,7 @@
+from datetime import timedelta
 from django.db.models import Avg, Count
 from django_filters import rest_framework as filters
+from django.utils.timezone import now
 
 from projects.models import Project
 
@@ -11,6 +13,7 @@ class TransactionGroupFilter(filters.FilterSet):
         field_name="transactionevent__created",
         lookup_expr="gte",
         label="Transaction start date",
+        initial=now() - timedelta(days=7)
     )
     end = filters.IsoDateTimeFilter(
         field_name="transactionevent__created",
@@ -23,6 +26,18 @@ class TransactionGroupFilter(filters.FilterSet):
         lookup_expr="icontains",
         label="Transaction text search",
     )
+
+    def __init__(self, data=None, *args, **kwargs):
+        if data is not None:
+            data = data.copy()
+
+            for name, f in self.base_filters.items():
+                initial = f.extra.get('initial')
+
+                if not data.get(name) and initial:
+                    data[name] = initial
+
+        super().__init__(data, *args, **kwargs)
 
     class Meta:
         model = TransactionGroup
