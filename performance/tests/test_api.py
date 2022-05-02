@@ -31,7 +31,14 @@ class TransactionGroupAPITestCase(GlitchTipTestCase):
         )
 
     def test_list(self):
-        group = baker.make("performance.TransactionGroup", project=self.project)
+        now = timezone.now()
+        group = baker.make(
+            "performance.TransactionGroup", created=now, project=self.project
+        )
+        baker.make(
+            "performance.TransactionEvent",
+            group=group,
+        )
         res = self.client.get(self.list_url)
         self.assertContains(res, group.transaction)
 
@@ -47,7 +54,15 @@ class TransactionGroupAPITestCase(GlitchTipTestCase):
             project=self.project,
             tags={"environment": [environment.name]},
         )
+        baker.make(
+            "performance.TransactionEvent",
+            group=group1,
+        )
         group2 = baker.make("performance.TransactionGroup", project=self.project)
+        baker.make(
+            "performance.TransactionEvent",
+            group=group2,
+        )
         res = self.client.get(self.list_url, {"environment": environment.name})
         self.assertContains(res, group1.transaction)
         self.assertNotContains(res, group2.transaction)
