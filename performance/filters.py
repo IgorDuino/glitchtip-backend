@@ -1,4 +1,8 @@
+import re
+from datetime import timedelta
+
 from django.db.models import Avg, Count
+from django.utils import timezone
 from django_filters import rest_framework as filters
 from django_filters.fields import IsoDateTimeField
 
@@ -7,8 +11,39 @@ from projects.models import Project
 from .models import TransactionGroup
 
 
+RELATIVE_TIME_REGEX = re.compile(r"[nowmhd0-9\-]*$")
+
+
 class RelativeIsoDateTimeField(IsoDateTimeField):
-    pass
+    """
+    Allow relative terms like now or now-1h. Only 0 or 1 subtraction operation is permitted.
+
+    Accepts
+    - now
+    - - (subtraction)
+    - m (minutes)
+    - h (hours)
+    - d (days)
+    """
+
+    def strptime(self, value, format):
+        # Check for relative time, if panic just assume it's a datetime
+        if "now" in value and RELATIVE_TIME_REGEX.match(value):
+            parts = [x.strip() for x in value.split("-")]
+            if len(parts) > 0 and len(parts) < 3 and parts[0] == "now":
+                result = timezone.now()
+                if len(parts) > 1:
+                    part = parts[0]
+                    numbers = re.findall(r"\d+", part)
+                    if numbers:
+                        if part.endswith("m"):
+                            result -= timedelta(minutes=numbers[0])
+                        if part.endswith("h"):
+                            result -= timedelta(hours=numbers[0])
+                        if part.endswith("d"):
+                            result -= timedelta(days=numbers[0])
+                return result
+        return super().strptime(value, format)
 
 
 class RelativeIsoDateTimeFilter(filters.IsoDateTimeFilter):

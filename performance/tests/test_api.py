@@ -54,7 +54,8 @@ class TransactionGroupAPITestCase(GlitchTipTestCase):
             timestamp=now + datetime.timedelta(seconds=1),
             duration=datetime.timedelta(seconds=1),
         )
-        res = self.client.get(self.list_url)
+        res = self.client.get(self.list_url, {"start": "now-1m"})
+        self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data[0]["transactionCount"], 1)
 
     def test_list_environment_filter(self):
