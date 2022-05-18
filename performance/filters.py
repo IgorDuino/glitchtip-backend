@@ -1,18 +1,27 @@
 from django.db.models import Avg, Count
 from django_filters import rest_framework as filters
+from django_filters.fields import IsoDateTimeField
 
 from projects.models import Project
 
 from .models import TransactionGroup
 
 
+class RelativeIsoDateTimeField(IsoDateTimeField):
+    pass
+
+
+class RelativeIsoDateTimeFilter(filters.IsoDateTimeFilter):
+    field_class = RelativeIsoDateTimeField
+
+
 class TransactionGroupFilter(filters.FilterSet):
-    start = filters.IsoDateTimeFilter(
+    start = RelativeIsoDateTimeFilter(
         field_name="transactionevent__created",
         lookup_expr="gte",
         label="Transaction start date",
     )
-    end = filters.IsoDateTimeFilter(
+    end = RelativeIsoDateTimeFilter(
         field_name="transactionevent__created",
         lookup_expr="lte",
         label="Transaction end date",

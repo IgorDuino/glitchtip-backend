@@ -35,6 +35,28 @@ class TransactionGroupAPITestCase(GlitchTipTestCase):
         res = self.client.get(self.list_url)
         self.assertContains(res, group.transaction)
 
+    def test_list_relative_datetime_filter(self):
+        group = baker.make("performance.TransactionGroup", project=self.project)
+        now = timezone.now()
+        last_minute = now - datetime.timedelta(minutes=1)
+        with freeze_time(last_minute):
+            baker.make(
+                "performance.TransactionEvent",
+                group=group,
+                start_timestamp=last_minute,
+                timestamp=last_minute + datetime.timedelta(seconds=5),
+                duration=datetime.timedelta(seconds=5),
+            )
+        transaction2 = baker.make(
+            "performance.TransactionEvent",
+            group=group,
+            start_timestamp=now,
+            timestamp=now + datetime.timedelta(seconds=1),
+            duration=datetime.timedelta(seconds=1),
+        )
+        res = self.client.get(self.list_url)
+        self.assertEqual(res.data[0]["transactionCount"], 1)
+
     def test_list_environment_filter(self):
         environment_project = baker.make(
             "environments.EnvironmentProject",
