@@ -47,16 +47,67 @@ class TransactionGroupAPITestCase(GlitchTipTestCase):
                 timestamp=last_minute + datetime.timedelta(seconds=5),
                 duration=datetime.timedelta(seconds=5),
             )
-        transaction2 = baker.make(
-            "performance.TransactionEvent",
-            group=group,
-            start_timestamp=now,
-            timestamp=now + datetime.timedelta(seconds=1),
-            duration=datetime.timedelta(seconds=1),
-        )
-        res = self.client.get(self.list_url, {"start": "now-1m"})
+        two_minutes_ago = now - datetime.timedelta(minutes=2)
+        with freeze_time(two_minutes_ago):
+            baker.make(
+                "performance.TransactionEvent",
+                group=group,
+                start_timestamp=two_minutes_ago,
+                timestamp=two_minutes_ago + datetime.timedelta(seconds=1),
+                duration=datetime.timedelta(seconds=1),
+            )
+
+        yesterday = now - datetime.timedelta(days=1)
+        with freeze_time(yesterday):
+            baker.make(
+                "performance.TransactionEvent",
+                group=group,
+                start_timestamp=yesterday,
+                timestamp=yesterday + datetime.timedelta(seconds=1),
+                duration=datetime.timedelta(seconds=1),
+            )
+
+        with freeze_time(now):
+            res = self.client.get(self.list_url, {"start": last_minute})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data[0]["transactionCount"], 1)
+
+        with freeze_time(now):
+            res = self.client.get(self.list_url, {"start": "now-1m"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data[0]["transactionCount"], 1)
+
+        with freeze_time(now):
+            res = self.client.get(self.list_url, {"start": "now-2m"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data[0]["transactionCount"], 2)
+
+        with freeze_time(now):
+            res = self.client.get(self.list_url, {"end": "now-1d"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data[0]["transactionCount"], 1)
+
+        with freeze_time(now):
+            res = self.client.get(self.list_url, {"end": "now-24h"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data[0]["transactionCount"], 1)
+
+        with freeze_time(now):
+            res = self.client.get(self.list_url, {"end": "now"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data[0]["transactionCount"], 3)
+
+        # with freeze_time(now):
+        #     res = self.client.get(self.list_url, {"start": "now-1m", "end":"now"})
+        # self.assertEqual(res.status_code, 200)
+        # self.assertEqual(res.data[0]["transactionCount"], 1)
+
+        res = self.client.get(self.list_url, {"start": "now-1"})
+        self.assertEqual(res.status_code, 400)
+        res = self.client.get(self.list_url, {"start": "now-1minute"})
+        self.assertEqual(res.status_code, 400)
+        res = self.client.get(self.list_url, {"start": "won-1m"})
+        self.assertEqual(res.status_code, 400)
 
     def test_list_environment_filter(self):
         environment_project = baker.make(

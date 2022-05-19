@@ -11,7 +11,7 @@ from projects.models import Project
 from .models import TransactionGroup
 
 
-RELATIVE_TIME_REGEX = re.compile(r"[nowmhd0-9\-]*$")
+RELATIVE_TIME_REGEX = re.compile(r"now\-\d+(m|h|d)$")
 
 
 class RelativeIsoDateTimeField(IsoDateTimeField):
@@ -28,21 +28,18 @@ class RelativeIsoDateTimeField(IsoDateTimeField):
 
     def strptime(self, value, format):
         # Check for relative time, if panic just assume it's a datetime
-        if "now" in value and RELATIVE_TIME_REGEX.match(value):
-            parts = [x.strip() for x in value.split("-")]
-            if len(parts) > 0 and len(parts) < 3 and parts[0] == "now":
-                result = timezone.now()
-                if len(parts) > 1:
-                    part = parts[0]
-                    numbers = re.findall(r"\d+", part)
-                    if numbers:
-                        if part.endswith("m"):
-                            result -= timedelta(minutes=numbers[0])
-                        if part.endswith("h"):
-                            result -= timedelta(hours=numbers[0])
-                        if part.endswith("d"):
-                            result -= timedelta(days=numbers[0])
-                return result
+        result = timezone.now()
+        if value == "now":
+            return result
+        if RELATIVE_TIME_REGEX.match(value):
+            numbers = int(re.findall(r"\d+", value)[0])
+            if value[-1] == "m":
+                result -= timedelta(minutes=numbers)
+            if value[-1] == "h":
+                result -= timedelta(hours=numbers)
+            if value[-1] == "d":
+                result -= timedelta(days=numbers)
+            return result
         return super().strptime(value, format)
 
 
