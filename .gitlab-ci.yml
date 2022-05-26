@@ -44,8 +44,6 @@ lint:
 
 build:
   image: docker:20
-  rules:
-    - if: '$CI_PIPELINE_SOURCE != "merge_request_event" && $CI_COMMIT_REF_PROTECTED == "true"'
   services:
     - docker:20-dind
   script:
