@@ -79,5 +79,5 @@ buildarm:
   script:
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.gitlab.com
     - docker buildx create --use
-    - docker buildx build --platform linux/arm64/v8 --push -t $CONTAINER_TEST_IMAGE --build-arg IS_CI="True" .
+    - docker buildx build --platform linux/arm64/v8,linux/amd64 --push -t $CONTAINER_TEST_IMAGE --build-arg IS_CI="True" .
 
