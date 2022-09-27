@@ -109,6 +109,21 @@ class UsersTestCase(GlitchTipTestCase):
         res = self.client.get(url)
         self.assertNotContains(res, other_user.email)
 
+    def test_organization_ownership(self):
+        user1 = baker.make("users.user")
+        org = baker.make("organizations_ext.Organization")
+        org.add_user(user1, OrganizationUserRole.OWNER)
+        user2 = baker.make("users.user")
+        org.add_user(user2, OrganizationUserRole.MEMBER)
+
+        self.client.force_login(user1)
+        url = reverse("user-detail", args=["me"])
+        res = self.client.get(url)
+        self.assertEqual(res.data["ownsOrg"], True)
+        self.client.force_login(user2)
+        res = self.client.get(url)
+        self.assertEqual(res.data["ownsOrg"], False)
+
     def test_emails_retrieve(self):
         email_address = baker.make("account.EmailAddress", user=self.user)
         another_user = baker.make("users.user")

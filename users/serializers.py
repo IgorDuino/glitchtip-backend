@@ -17,7 +17,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from glitchtip.constants import SOCIAL_ADAPTER_MAP
-
+from organizations_ext.models import OrganizationUserRole
 from .forms import PasswordSetAndResetForm
 from .models import User
 
@@ -137,6 +137,7 @@ class UserSerializer(serializers.ModelSerializer):
     hasPasswordAuth = serializers.BooleanField(
         source="has_usable_password", read_only=True
     )
+    ownsOrg = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -144,6 +145,7 @@ class UserSerializer(serializers.ModelSerializer):
             "username",
             "lastLogin",
             "isSuperuser",
+            "ownsOrg",
             "emails",
             "identities",
             "id",
@@ -155,6 +157,12 @@ class UserSerializer(serializers.ModelSerializer):
             "options",
         )
 
+    def get_ownsOrg(self, obj):
+        userOrgUsers = obj.organizations_ext_organizationuser.all()
+        for orgUser in userOrgUsers:
+            if orgUser.role == OrganizationUserRole.OWNER:
+                return True
+        return False
 
 class RegisterSerializer(BaseRegisterSerializer):
     tags = serializers.CharField(
