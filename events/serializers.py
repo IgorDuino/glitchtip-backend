@@ -82,14 +82,14 @@ class BreadcrumbsSerializer(BaseBreadcrumbsSerializer):
 
 
 class BaseSerializer(serializers.Serializer):
-    def process_user(self, project, data):
+    def process_user(self, should_scrub_ip_addresses, data):
         """Fetch user data from SDK event and request"""
         user = data.get("user", {})
         if self.context and self.context.get("request"):
             client_ip, is_routable = get_client_ip(self.context["request"])
             if user or is_routable:
                 if is_routable:
-                    if project.should_scrub_ip_addresses:
+                    if should_scrub_ip_addresses:
                         client_ip = anonymize_ip(client_ip)
                     user["ip_address"] = client_ip
                 return user
@@ -111,21 +111,6 @@ class SentrySDKEventSerializer(BaseSerializer):
         required=False, allow_null=True, disallow_regex=r"^[^\n\r\f\/]*$"
     )
     _meta = serializers.JSONField(required=False)
-
-    def get_environment(self, name: str, project):
-        environment, _ = Environment.objects.get_or_create(
-            name=name[: Environment._meta.get_field("name").max_length],
-            organization=project.organization,
-        )
-        environment.projects.add(project)
-        return environment
-
-    def get_release(self, version: str, project):
-        release, _ = Release.objects.get_or_create(
-            version=version, organization=project.organization
-        )
-        release.projects.add(project)
-        return release
 
 
 class FormattedMessageSerializer(serializers.Serializer):
@@ -291,7 +276,6 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
 
     def create(self, validated_data):
         data = validated_data
-        project = self.context.get("project")
 
         eventtype = self.get_eventtype()
         metadata = eventtype.get_metadata(data)
@@ -310,11 +294,8 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
             for value in exception.get("values", []):
                 self.normalize_stacktrace(value.get("stacktrace"))
 
-        if release := data.get("release"):
-            release = self.get_release(release, project)
-
         for Processor in EVENT_PROCESSORS:
-            Processor(project, release, data).run()
+            Processor(self.context.get("release_id"), data).run()
 
         title = eventtype.get_title(metadata)
         culprit = eventtype.get_location(data)
@@ -336,29 +317,24 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
         data["contexts"] = contexts
 
         with transaction.atomic():
-            if not project.first_event:
-                project.first_event = data.get("timestamp")
-                project.save(update_fields=["first_event"])
             defaults = {
                 "metadata": sanitize_bad_postgres_json(metadata),
             }
             if level:
                 defaults["level"] = level
 
-            if environment := data.get("environment"):
-                environment = self.get_environment(data["environment"], project)
             tags = []
-            if environment:
-                tags.append(("environment", environment.name))
-            if release:
-                tags.append(("release", release.version))
+            if self.context["environment_id"]:
+                tags.append(("environment", data.get("environment")))
+            if self.context["release_id"]:
+                tags.append(("release", data.get("release")))
             tags = self.generate_tags(data, tags)
             defaults["tags"] = {tag[0]: [tag[1]] for tag in tags}
 
             issue, _ = Issue.objects.get_or_create(
                 title=sanitize_bad_postgres_chars(title),
                 culprit=sanitize_bad_postgres_chars(culprit),
-                project_id=project.id,
+                project_id=self.context["project_id"],
                 type=self.type,
                 defaults=defaults,
             )
@@ -379,15 +355,15 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
                 "type": self.type.label,
             }
 
-            if environment:
-                json_data["environment"] = environment.name
+            # if environment:
+            #     json_data["environment"] = environment.name
             if data.get("logentry"):
                 json_data["logentry"] = data.get("logentry")
 
             extra = data.get("extra")
             if extra:
                 json_data["extra"] = extra
-            user = self.process_user(project, data)
+            user = self.process_user(self.context["should_scrub_ip_addresses"], data)
             if user:
                 json_data["user"] = user
 
@@ -413,7 +389,7 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
                 "errors": errors,
                 "timestamp": data.get("timestamp"),
                 "data": sanitize_bad_postgres_json(json_data),
-                "release": release,
+                "release_id": self.context["release_id"],
             }
             if level:
                 params["level"] = level

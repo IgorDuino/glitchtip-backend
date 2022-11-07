@@ -9,7 +9,7 @@ from . import django_error_factory
 from .csp import mdn_sample_csp
 
 events = django_error_factory.all_django_events
-events.append(mdn_sample_csp)
+# events.append(mdn_sample_csp)
 
 
 def get_random_string(length=16):

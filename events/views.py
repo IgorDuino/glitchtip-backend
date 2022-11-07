@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation, ValidationError
+from django.db import connection
 from django.db.models import Exists, OuterRef
 from django.db.utils import IntegrityError
 from django.http import HttpResponse
@@ -97,28 +98,51 @@ class BaseEventAPIView(APIView):
                 "Unable to find authentication information"
             )
 
-        return result.get("sentry_key", result.get("glitchtip_key"))
-
-    def get_project(self, request, project_id):
-        sentry_key = BaseEventAPIView.auth_from_request(request)
-        difs_subquery = DebugInformationFile.objects.filter(project_id=OuterRef("pk"))
         try:
-            project = (
-                Project.objects.filter(id=project_id, projectkey__public_key=sentry_key)
-                .annotate(has_difs=Exists(difs_subquery))
-                .select_related("organization")
-                .only("id", "first_event", "organization__is_accepting_events")
-                .first()
+            key = uuid.UUID(result.get("sentry_key", result.get("glitchtip_key")))
+        except ValueError as err:
+            raise exceptions.AuthenticationFailed("invalid api key", code=401) from err
+        return key
+
+    def event_preprocess(self, request, project_id):
+        """
+        Check auth, prefetch related data to be used after deserialization
+        Use database function for optimization.
+        Return context to be used with serializer
+        """
+        if settings.EVENT_STORE_DEBUG:
+            print(json.dumps(request.data))
+
+        sentry_key = BaseEventAPIView.auth_from_request(request)
+        release = request.data.get("release")
+        if release:
+            release = release[:256]
+        environment = request.data.get("environment")
+        if environment:
+            environment = environment[:256]
+            if "/" in environment:
+                environment = None
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM event_preprocess(%s, %s, %s, %s)",
+                (project_id, sentry_key, release, environment),
             )
-        except ValidationError as err:
-            raise exceptions.AuthenticationFailed({"error": "Invalid api key"}) from err
-        if not project:
-            if Project.objects.filter(id=project_id).exists():
-                raise exceptions.AuthenticationFailed({"error": "Invalid api key"})
-            raise exceptions.ValidationError("Invalid project_id: %s" % project_id)
-        if not project.organization.is_accepting_events:
+            result = cursor.fetchone()
+        context = {
+            "organization_id": result[0],
+            "has_diffs": result[1],
+            "is_accepting_events": result[2],
+            "should_scrub_ip_addresses": result[3],
+            "release_id": result[4],
+            "environment_id": result[5],
+            "project_id": project_id,
+        }
+
+        if not context["organization_id"]:
+            raise exceptions.AuthenticationFailed({"error": "Invalid api key"})
+        if not context["is_accepting_events"]:
             raise exceptions.Throttled(detail="event rejected due to rate limit")
-        return project
+        return context
 
     def get_event_serializer_class(self, data=None):
         """Determine event type and return serializer"""
@@ -130,10 +154,12 @@ class BaseEventAPIView(APIView):
             return StoreCSPReportSerializer
         return StoreDefaultSerializer
 
-    def process_event(self, data, request, project):
+    def process_event(self, data, context):
+        """Determine correct serializer and save event"""
         set_context("incoming event", data)
         serializer = self.get_event_serializer_class(data)(
-            data=data, context={"request": self.request, "project": project}
+            data=data,
+            context=context,
         )
         try:
             serializer.is_valid(raise_exception=True)
@@ -143,7 +169,7 @@ class BaseEventAPIView(APIView):
             logger.warning("Invalid event %s", serializer.errors)
             return Response()
         event = serializer.save()
-        if event.data.get("exception") is not None and project.has_difs:
+        if event.data.get("exception") is not None and context["has_diffs"]:
             difs_run_resolve_stacktrace(event.event_id)
         return Response({"id": event.event_id_hex})
 
@@ -157,14 +183,14 @@ class EventStoreAPIView(BaseEventAPIView):
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        if settings.EVENT_STORE_DEBUG:
-            print(json.dumps(request.data))
+        project_id = kwargs.get("id")
         try:
-            project = self.get_project(request, kwargs.get("id"))
+            context = self.event_preprocess(request, project_id)
         except exceptions.AuthenticationFailed as err:
             # Replace 403 status code with 401 to match OSS Sentry
             return Response(err.detail, status=401)
-        return self.process_event(request.data, request, project)
+        context["request"] = request
+        return self.process_event(request.data, context)
 
 
 class CSPStoreAPIView(EventStoreAPIView):

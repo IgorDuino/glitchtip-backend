@@ -65,7 +65,7 @@ class EventStoreTestCase(APITestCase):
 
         url = reverse("event_store", args=[10000]) + self.params
         res = self.client.post(url, data, format="json")
-        self.assertContains(res, "Invalid project_id", status_code=400)
+        self.assertContains(res, "Invalid", status_code=401)
 
     def test_error_event(self):
         with open("events/test_data/py_error.json") as json_file:
@@ -99,13 +99,28 @@ class EventStoreTestCase(APITestCase):
     def test_performance(self):
         with open("events/test_data/py_hi_event.json") as json_file:
             data = json.load(json_file)
-        with self.assertNumQueries(15):
+        with self.assertNumQueries(9):
             res = self.client.post(self.url, data, format="json")
         self.assertEqual(res.status_code, 200)
 
         # Second event should have less queries
         data["event_id"] = "6600a066e64b4caf8ed7ec5af64ac4bb"
+        with self.assertNumQueries(6):
+            res = self.client.post(self.url, data, format="json")
+        self.assertEqual(res.status_code, 200)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=False)
+    def test_ingest_response_performance(self):
+        """Only test sync actions, not celery"""
+        with open("events/test_data/py_hi_event.json") as json_file:
+            data = json.load(json_file)
         with self.assertNumQueries(8):
+            res = self.client.post(self.url, data, format="json")
+        self.assertEqual(res.status_code, 200)
+
+        # Second event should have less queries
+        data["event_id"] = "6600a066e64b4caf8ed7ec5af64ac4bb"
+        with self.assertNumQueries(5):
             res = self.client.post(self.url, data, format="json")
         self.assertEqual(res.status_code, 200)
 
