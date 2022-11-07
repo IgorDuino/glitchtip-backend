@@ -12,6 +12,7 @@ from django.db.models import Exists, OuterRef
 from django.db.utils import IntegrityError
 from django.http import HttpResponse
 from django.test import RequestFactory
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import exceptions, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -59,8 +60,8 @@ def test_event_view(request):
 class BaseEventAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
-    content_negotiation_class = IgnoreClientContentNegotiation
-    http_method_names = ["post"]
+    # content_negotiation_class = IgnoreClientContentNegotiation
+    http_method_names = ["post", "get"]
 
     @classmethod
     def auth_from_request(cls, request):
@@ -146,6 +147,7 @@ class BaseEventAPIView(APIView):
 
     def get_event_serializer_class(self, data=None):
         """Determine event type and return serializer"""
+        return StoreErrorSerializer
         if data is None:
             data = []
         if "exception" in data and data["exception"]:
@@ -175,6 +177,10 @@ class BaseEventAPIView(APIView):
 
 
 class EventStoreAPIView(BaseEventAPIView):
+    def get(self, request, *args, **kwargs):
+        return Response({"hello": "there"})
+
+    @csrf_exempt
     def post(self, request, *args, **kwargs):
         if settings.MAINTENANCE_EVENT_FREEZE:
             return Response(

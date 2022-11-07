@@ -2,6 +2,7 @@ CREATE OR REPLACE FUNCTION event_preprocess (_project_id numeric, _sentry_key uu
 AS $$
 DECLARE
   _first_event timestamp with time zone;
+  _related_exists int;
 BEGIN
   SELECT
     INTO _organization_id,
@@ -17,11 +18,11 @@ BEGIN
     projects_project.scrub_ip_addresses,
     EXISTS (
       SELECT
-        1 AS "a"
+        1
       FROM
-        "difs_debuginformationfile" U0
+        difs_debuginformationfile
       WHERE
-        U0."project_id" = ("projects_project"."id")
+        project_id = _project_id
       LIMIT 1) AS has_diffs,
   NULL,
   NULL
@@ -33,39 +34,49 @@ WHERE (projects_project.id = _project_id
     AND projects_projectkey.public_key = _sentry_key);
   IF _organization_id IS NOT NULL AND _project_id::int::bool THEN
     -- Get release_id, if it exists
-    SELECT
-      id INTO _release_id
-    FROM
-      releases_release
+    IF _release_name IS NOT NULL THEN
+      SELECT
+        INTO _release_id,
+        _related_exists --
+        releases_release.id,
+        releases_releaseproject.release_id
+      FROM
+        releases_release
+      LEFT JOIN releases_releaseproject ON releases_releaseproject.release_id = releases_release.id
     WHERE
       releases_release.organization_id = _organization_id
-      AND releases_release.version = _release_name
-    LIMIT 1;
-    -- If no release, create it
-    IF _release_name IS NOT NULL THEN
+        AND releases_release.version = _release_name
+      LIMIT 1;
+      -- If no release, create it
       IF _release_id IS NULL THEN
         INSERT INTO releases_release (version, organization_id, created, data, commit_count, deploy_count)
           VALUES (_release_name, _organization_id, now(), '{}'::json, 0, 0)
         RETURNING
           id INTO _release_id;
       END IF;
-      -- Insert project-release relationship if not exists
-      INSERT INTO releases_releaseproject (project_id, release_id)
-        VALUES (_project_id, _release_id)
-      ON CONFLICT
-        DO NOTHING;
+      -- Insert project - release relationship if it doesn't exist
+      IF _related_exists IS NULL THEN
+        INSERT INTO releases_releaseproject (project_id, release_id)
+          VALUES (_project_id, _release_id)
+        ON CONFLICT
+          DO NOTHING;
+      END IF;
     END IF;
     -- Get environment_id, if it exists
-    SELECT
-      id INTO _environment_id
-    FROM
-      environments_environment
+    IF _environment_name IS NOT NULL THEN
+      SELECT
+        INTO _environment_id,
+        _related_exists --
+        environments_environment.id,
+        environments_environmentproject.environment_id
+      FROM
+        environments_environment
+      LEFT JOIN environments_environmentproject ON environments_environmentproject.environment_id = environments_environment.id
     WHERE
       environments_environment.organization_id = _organization_id
-      AND environments_environment.name = _environment_name
-    LIMIT 1;
-    -- If no environment, create it
-    IF _environment_name IS NOT NULL THEN
+        AND environments_environment.name = _environment_name
+      LIMIT 1;
+      -- If no environment, create it
       IF _environment_id IS NULL THEN
         INSERT INTO environments_environment (name, organization_id, created)
           VALUES (_environment_name, _organization_id, now())
@@ -73,10 +84,12 @@ WHERE (projects_project.id = _project_id
           id INTO _environment_id;
       END IF;
       -- Insert project-environment relationship if not exists
-      INSERT INTO environments_environmentproject (project_id, environment_id, is_hidden, created)
-        VALUES (_project_id, _environment_id, FALSE, now())
-      ON CONFLICT
-        DO NOTHING;
+      IF _related_exists IS NULL THEN
+        INSERT INTO environments_environmentproject (project_id, environment_id, is_hidden, created)
+          VALUES (_project_id, _environment_id, FALSE, now())
+        ON CONFLICT
+          DO NOTHING;
+      END IF;
     END IF;
     -- If not first event, set the project first event
     IF _first_event IS NULL THEN

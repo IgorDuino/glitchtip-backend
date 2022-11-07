@@ -114,7 +114,7 @@ class EventStoreTestCase(APITestCase):
         """Only test sync actions, not celery"""
         with open("events/test_data/py_hi_event.json") as json_file:
             data = json.load(json_file)
-        with self.assertNumQueries(8):
+        with self.assertNumQueries(7):
             res = self.client.post(self.url, data, format="json")
         self.assertEqual(res.status_code, 200)
 

@@ -39,7 +39,7 @@ env = environ.Env(
     GS_BUCKET_NAME=(str, None),
     GS_PROJECT_ID=(str, None),
     DEBUG=(bool, False),
-    DEBUG_TOOLBAR=(bool, False),
+    DEBUG_TOOLBAR=(bool, True),
     STATIC_URL=(str, "/"),
     STATICFILES_STORAGE=(
         str,
@@ -160,6 +160,7 @@ DEBUG_TOOLBAR_PANELS = [
     "debug_toolbar.panels.headers.HeadersPanel",
     "debug_toolbar.panels.request.RequestPanel",
     "debug_toolbar.panels.sql.SQLPanel",
+    "debug_toolbar.panels.profiling.ProfilingPanel",
 ]
 
 # Application definition
