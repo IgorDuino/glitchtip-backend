@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
+from django.core.cache import cache
 from django.db import connection, models
 
 from events.models import LogLevel
@@ -100,9 +101,27 @@ class Issue(CreatedModel):
         return f"{settings.GLITCHTIP_URL.geturl()}/{self.project.organization.slug}/issues/{self.pk}"
 
     @classmethod
+    def _get_update_key(issue_id: int):
+        return f"issue_update_{issue_id}"
+
+    @classmethod
     def update_index(cls, issue_id: int):
         """
         Update search index/tag aggregations
         """
-        with connection.cursor() as cursor:
-            cursor.execute("CALL update_issue_index(%s)", [issue_id])
+        cache_key = self._get_update_key(issue_id)
+        created = cache.get(cache_key)
+        if created:
+            cache.delete(cache_key)
+            with connection.cursor() as cursor:
+                cursor.execute("CALL update_issue_index(%s, %s)", [issue_id, created])
+
+    def dispatch_update_index_task(self, created):
+        """
+        Set cache key to created time, if it doesn't already exist
+        Then dispatch a debounced update index task
+        """
+        result = cache.set(self._get_update_key(self.pk), created, 3600, nx=True)
+        if result:
+            con.expire(cache_key, 3600)
+        update_search_index_issue(args=[issue.pk], countdown=10, expires=3600)
