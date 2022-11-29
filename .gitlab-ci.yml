@@ -45,6 +45,19 @@ lint:
   rules:
     - if: $CI_PIPELINE_SOURCE != "schedule"
 
+test_dind:
+  image: docker:20
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+  tags:
+    - funkwhale
+  services:
+    - docker:20-dind
+  script:
+    - docker info
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "schedule"
+
 build:
   image: docker:20
   rules:
