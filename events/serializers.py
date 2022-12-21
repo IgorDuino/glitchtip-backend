@@ -15,6 +15,7 @@ from glitchtip.serializers import FlexibleDateTimeField
 from issues.models import EventType, Issue
 from issues.serializers import BaseBreadcrumbsSerializer
 from issues.tasks import update_search_index_issue
+from projects.tasks import update_event_project_hourly_statistic
 from releases.models import Release
 from sentry.eventtypes.base import DefaultEvent
 from sentry.eventtypes.error import ErrorEvent
@@ -445,6 +446,9 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
             issue.check_for_status_update()
             # Expire after 1 hour - in case of major backup
             update_search_index_issue(args=[issue.pk], countdown=10)
+        update_event_project_hourly_statistic(
+            args=[project.pk, event.created], countdown=10
+        )
 
         return event
 
