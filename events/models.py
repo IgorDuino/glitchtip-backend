@@ -82,11 +82,11 @@ class Event(AbstractEvent):
         ordering = ["-created"]
 
     def save(self, *args, **kwargs):
-        is_new = bool(self.pk)
+        is_new = self._state.adding
         super().save(*args, **kwargs)
         if is_new:
             update_event_project_hourly_statistic(
-                args=[project.pk, event.created], countdown=60
+                args=[self.issue.project.pk, self.created], countdown=60
             )
 
     def event_json(self):
