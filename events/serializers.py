@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from anonymizeip import anonymize_ip
 from django.db import transaction
-from django.db.models.expressions import RawSQL, OuterRef
+from django.db.models.expressions import OuterRef, RawSQL
 from django.db.utils import IntegrityError
 from ipware import get_client_ip
 from rest_framework import serializers
@@ -15,7 +15,6 @@ from glitchtip.serializers import FlexibleDateTimeField
 from issues.models import EventType, Issue
 from issues.serializers import BaseBreadcrumbsSerializer
 from issues.tasks import update_search_index_issue
-from projects.tasks import update_event_project_hourly_statistic
 from releases.models import Release
 from sentry.eventtypes.base import DefaultEvent
 from sentry.eventtypes.error import ErrorEvent
@@ -445,10 +444,7 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
         else:  # Updates can be slower and debounced
             issue.check_for_status_update()
             # Expire after 1 hour - in case of major backup
-            update_search_index_issue(args=[issue.pk], countdown=10)
-        update_event_project_hourly_statistic(
-            args=[project.pk, event.created], countdown=10
-        )
+            update_search_index_issue(args=[issue.pk])
 
         return event
 
