@@ -81,7 +81,7 @@ SET
   count = event_agg.new_count + issues_issue.count,
   last_seen = GREATEST(event_agg.new_last_seen, issues_issue.last_seen),
   level = GREATEST(event_agg.new_level, issues_issue.level),
-  search_vector = CASE WHEN length(event_vector.vector) < 10000 THEN event_vector.vector || COALESCE(search_vector, '') ELSE search_vector END,
+  search_vector = CASE WHEN length(event_vector.vector) < 10000 AND COALESCE(length(search_vector),0) < 10000 THEN event_vector.vector || COALESCE(search_vector, '') ELSE search_vector END,
   tags = CASE WHEN event_agg.new_tags is not null THEN jsonb_merge_deep(event_agg.new_tags, tags) ELSE tags END
 FROM event_agg, event_vector
 WHERE issues_issue.id = update_issue_id;
