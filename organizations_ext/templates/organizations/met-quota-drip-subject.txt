@@ -1,1 +1,3 @@
-Met event quota for {{ organization.name }} 
+{% autoescape off %}
+Met event quota for {{ organization.name }}
+{% endautoescape %}

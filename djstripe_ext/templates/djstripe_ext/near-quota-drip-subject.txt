@@ -1,1 +1,3 @@
+{% autoescape off %}
 Nearing event quota for {{ organization }}
+{% endautoescape %}

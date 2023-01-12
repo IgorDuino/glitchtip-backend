@@ -1,1 +1,3 @@
+{% autoescape off %}
 GlitchTip: {{ object.monitor }} {{ status_msg }}
+{% endautoescape %}
