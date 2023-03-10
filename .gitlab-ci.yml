@@ -6,6 +6,7 @@ variables:
   POETRY_HOME: "/opt/poetry"
   POSTGRES_HOST_AUTH_METHOD: "trust"
   DEBUG: "true"
+  CACHE_IMAGE_NAME: "$CI_REGISTRY/glitchtip/$PROJECT_NAME/$PROJECT_NAME:cache"
 
 include:
   - template: SAST.gitlab-ci.yml
@@ -105,6 +106,27 @@ build_arm_x86:
       when: never
     - if: '$CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/ && $CI_COMMIT_REF_PROTECTED == "true"'
 
+build_arm64:
+  image: docker:23
+  needs:
+    - buildx
+  services:
+    - docker:23-dind
+  before_script:
+    - mkdir -p ~/.docker/cli-plugins
+    - mv buildx ~/.docker/cli-plugins/docker-buildx
+    - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+  script:
+    - wget https://gitlab.com/api/v4/projects/15449363/jobs/artifacts/v3.0.7/download?job=build-assets -O assets.zip
+    - unzip assets.zip
+    - rm assets.zip
+    - mv dist/glitchtip-frontend/* dist/
+    - rmdir dist/glitchtip-frontend/
+    - VERSION=0.0.0
+    - echo "Build version $VERSION ci registry image $CI_REGISTRY_IMAGE commit ref $CI_COMMIT_REF_NAME"
+    - docker login -u ${DOCKER_CI_REGISTRY_USER} -p ${DOCKER_CI_REGISTRY_PASSWORD}
+    - docker buildx create --use
+    - docker buildx build --cache-from "$CACHE_IMAGE_NAME" --tag "$CACHE_IMAGE_NAME" --push --platform=linux/arm64/v8 .
 
 update_deps:
   image: renovate/renovate:33
