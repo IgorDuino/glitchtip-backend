@@ -120,9 +120,8 @@ build_arm64:
     - rmdir dist/glitchtip-frontend/
     - VERSION=0.0.0
     - echo "Build version $VERSION ci registry image $CI_REGISTRY_IMAGE commit ref $CI_COMMIT_REF_NAME"
-    - docker login -u ${DOCKER_CI_REGISTRY_USER} -p ${DOCKER_CI_REGISTRY_PASSWORD}
     - docker buildx create --use
-    - docker buildx build --cache-from "$CACHE_IMAGE_NAME" --tag "$CACHE_IMAGE_NAME" --push --platform=linux/arm64/v8 .
+    - docker buildx build --cache-from "$CACHE_IMAGE_NAME" --tag "$CACHE_IMAGE_NAME" --platform=linux/arm64/v8 .
 
 update_deps:
   image: renovate/renovate:33
