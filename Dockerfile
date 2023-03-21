@@ -7,9 +7,8 @@ ENV PYTHONUNBUFFERED=1 \
   PIP_DISABLE_PIP_VERSION_CHECK=on
 
 WORKDIR /code
-RUN curl -sSL https://install.python-poetry.org | python3 -
-COPY poetry.lock pyproject.toml /code/
-RUN $POETRY_HOME/bin/poetry install --no-interaction --no-ansi --no-cache $(test "$IS_CI" = "True" && echo "--no-dev")
+COPY requirements.txt /code/
+RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
 ARG GLITCHTIP_VERSION=local
