@@ -2,6 +2,7 @@ import uuid
 from typing import Dict, List, Tuple, Union
 from urllib.parse import urlparse
 
+from django.db import connection
 from anonymizeip import anonymize_ip
 from django.db import transaction
 from django.db.models.expressions import OuterRef, RawSQL
@@ -12,7 +13,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from environments.models import Environment
 from glitchtip.serializers import FlexibleDateTimeField
-from issues.models import EventType, Issue
+from issues.models import EventType, Issue, EventStatus
 from issues.serializers import BaseBreadcrumbsSerializer
 from issues.tasks import update_search_index_issue
 from releases.models import Release
@@ -373,23 +374,33 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
             defaults["tags"] = {tag[0]: [tag[1]] for tag in tags}
 
             issue_created = False
-            # Similar to get_or_create but with multiple tables
-            try:
-                issue = Issue.objects.get(
-                    project_id=project.id,
-                    issuehash__value=issue_hash,
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT get_or_create_issue(%s, %s, %s, %s)",
+                    [project.id, issue_hash, 0, defaults["title"]],
                 )
-            except Issue.DoesNotExist:
-                with transaction.atomic():
-                    issue = Issue.objects.create(project_id=project.id, **defaults)
-                    try:
-                        issue.issuehash_set.create(value=issue_hash, project=project)
-                        issue_created = True
-                    except IntegrityError:
-                        issue = Issue.objects.get(
-                            project_id=project.id,
-                            issuehash__value=issue_hash,
-                        )
+                row = cursor.fetchone()[0]
+                issue_id = row[0]
+                issue_status = EventStatus(int(row[1]))
+                if row[2] == "t":
+                    issue_created = True
+            # Similar to get_or_create but with multiple tables
+            # try:
+            #     issue = Issue.objects.get(
+            #         project_id=project.id,
+            #         issuehash__value=issue_hash,
+            #     )
+            # except Issue.DoesNotExist:
+            #     with transaction.atomic():
+            #         issue = Issue.objects.create(project_id=project.id, **defaults)
+            #         try:
+            #             issue.issuehash_set.create(value=issue_hash, project=project)
+            #             issue_created = True
+            #         except IntegrityError:
+            #             issue = Issue.objects.get(
+            #                 project_id=project.id,
+            #                 issuehash__value=issue_hash,
+            #             )
 
             json_data = {
                 "breadcrumbs": breadcrumbs,
@@ -436,7 +447,7 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
 
             params = {
                 "event_id": data["event_id"],
-                "issue": issue,
+                "issue_id": issue_id,
                 "tags": {tag[0]: tag[1] for tag in tags},
                 "errors": errors,
                 "timestamp": data.get("timestamp"),
@@ -463,13 +474,16 @@ class StoreDefaultSerializer(SentrySDKEventSerializer):
             event_vector = event_data.annotate(
                 search_vector=RawSQL("select generate_issue_tsvector(data)", [])
             ).values("search_vector")
-            Issue.objects.filter(pk=issue.pk).update(
+            Issue.objects.filter(pk=issue_id).update(
                 search_vector=event_vector, last_seen=event.created
             )
         else:  # Updates can be slower and debounced
-            issue.check_for_status_update()
+            if issue_status == EventStatus.RESOLVED:
+                Issue.objects.filter(pk=issue_id).update(status=EventStatus.UNRESOLVED)
+                # TODO delete notifications!
+            # issue.check_for_status_update()
             # Expire after 1 hour - in case of major backup
-            update_search_index_issue(args=[issue.pk])
+            # update_search_index_issue(args=[issue_id])
 
         return event
 
