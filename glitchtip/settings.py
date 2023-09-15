@@ -639,7 +639,7 @@ for key, value in {
     else:
         oidc_servers[number] = {setting: value}
 oidc_servers = [x for x in oidc_servers.values()]
-SOCIALACCOUNT_PROVIDERS["openid_connect"] = {"SERVERS": oidc_servers}
+SOCIALACCOUNT_PROVIDERS["openid_connect"] = {"APPS": oidc_servers}
 
 
 # Remove in GlitchTip4.0
