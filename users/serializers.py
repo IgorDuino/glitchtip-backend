@@ -6,7 +6,6 @@ from allauth.account.adapter import get_adapter
 from allauth.account.forms import default_token_generator
 from allauth.account.models import EmailAddress
 from allauth.account.utils import filter_users_by_email
-from allauth.socialaccount import providers
 from allauth.socialaccount.models import SocialApp
 from dj_rest_auth.registration.serializers import (
     RegisterSerializer as BaseRegisterSerializer,
@@ -60,19 +59,15 @@ class SocialAppSerializer(serializers.ModelSerializer):
         fields = ("provider", "name", "client_id", "authorize_url", "scopes")
 
     def get_authorize_url(self, obj):
-        provider_name = (
-            providers.registry.by_id(obj.provider).get_package().split(".")[-1]
-        )
         request = self.context.get("request")
-        adapter = SOCIAL_ADAPTER_MAP.get(provider_name, None)(request)
+        adapter = SOCIAL_ADAPTER_MAP.get(obj.provider, obj.provider_id)(request)
         if adapter:
-            adapter.provider_id = obj.provider
             return adapter.authorize_url
 
     def get_scopes(self, obj):
         request = self.context.get("request")
         if request:
-            provider = providers.registry.by_id(obj.provider, request)
+            provider = obj.get_provider(request)
             return provider.get_scope(request)
 
 
