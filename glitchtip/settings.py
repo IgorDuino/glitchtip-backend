@@ -622,9 +622,7 @@ if NEXTCLOUD_URL := env.url("SOCIALACCOUNT_PROVIDERS_nextcloud_SERVER", None):
 if MICROSOFT_TENANT := env.str("SOCIALACCOUNT_PROVIDERS_microsoft_TENANT", None):
     SOCIALACCOUNT_PROVIDERS["microsoft"] = {"TENANT": MICROSOFT_TENANT}
 
-# Parse oidc settings as nested dict in array. Example:
-# SOCIALACCOUNT_PROVIDERS_openid_connect_SERVERS_0_id: "g-oidc"
-# SOCIALACCOUNT_PROVIDERS_openid_connect_SERVERS_0_server_url: "https://accounts.google.com"
+# Env var configuration of OIDC providers is deprecated, use Django admin panel to add OIDC providers.
 oidc_prefix = "SOCIALACCOUNT_PROVIDERS_openid_connect_SERVERS_"
 oidc_pattern = re.compile(r"{prefix}\w+".format(prefix=oidc_prefix))
 oidc_servers = {}
