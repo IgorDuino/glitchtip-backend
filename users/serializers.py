@@ -16,6 +16,7 @@ from dj_rest_auth.registration.serializers import (
 from dj_rest_auth.serializers import PasswordResetSerializer
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
+from adrf.serializers import ModelSerializer
 from rest_framework import serializers
 
 from glitchtip.constants import SOCIAL_ADAPTER_MAP
@@ -50,7 +51,7 @@ class SocialAccountSerializer(BaseSocialAccountSerializer):
             return obj.extra_data.get("username")
 
 
-class SocialAppSerializer(serializers.ModelSerializer):
+class SocialAppSerializer(ModelSerializer):
     authorize_url = serializers.SerializerMethodField()
     scopes = serializers.SerializerMethodField()
 
@@ -75,7 +76,7 @@ class ConfirmEmailAddressSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
-class EmailAddressSerializer(serializers.ModelSerializer):
+class EmailAddressSerializer(ModelSerializer):
     isPrimary = serializers.BooleanField(source="primary", read_only=True)
     email = serializers.EmailField()  # Remove default unique validation
     isVerified = serializers.BooleanField(source="verified", read_only=True)
@@ -125,7 +126,7 @@ class EmailAddressSerializer(serializers.ModelSerializer):
         return instance
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(ModelSerializer):
     username = serializers.CharField(source="email", read_only=True)
     lastLogin = serializers.DateTimeField(source="last_login", read_only=True)
     isSuperuser = serializers.BooleanField(source="is_superuser")
@@ -188,7 +189,7 @@ class RegisterSerializer(BaseRegisterSerializer):
             user.save(update_fields=["analytics"])
 
 
-class UserNotificationsSerializer(serializers.ModelSerializer):
+class UserNotificationsSerializer(ModelSerializer):
     subscribeByDefault = serializers.BooleanField(source="subscribe_by_default")
 
     class Meta:

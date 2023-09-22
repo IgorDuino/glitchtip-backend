@@ -12,9 +12,9 @@ from django.db.models.expressions import RawSQL
 from django.db.utils import IntegrityError
 from django.http import HttpResponse
 from django.test import RequestFactory
+from adrf.views import APIView
 from rest_framework import exceptions, permissions, status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from sentry_sdk import capture_exception, set_context, set_level
 
 from difs.models import DebugInformationFile
@@ -150,6 +150,42 @@ class BaseEventAPIView(APIView):
         if event.data.get("exception") is not None and project.has_difs:
             difs_run_resolve_stacktrace(event.event_id)
         return Response({"id": event.event_id_hex})
+
+
+# The A prefix is temporary, do not copy it
+class ABaseEventAPIView(BaseEventAPIView):
+    def check_status(self):
+        if settings.MAINTENANCE_EVENT_FREEZE:
+            return Response(
+                {
+                    "message": "Events are not currently being accepted due to maintenance."
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if settings.EVENT_STORE_DEBUG:
+            print(json.dumps(self.request.data))
+
+    async def get_project(self, request, **kwargs):
+        sentry_key = BaseEventAPIView.auth_from_request(request)
+        project_id = kwargs.get("id")
+        project = (
+            await Project.objects.filter(
+                id=project_id,
+                projectkey__public_key=sentry_key,
+            )
+            .select_related("organization")
+            .only(
+                "organization__is_accepting_events",
+            )
+            .afirst()
+        )
+
+
+class AEventStoreAPIView(ABaseEventAPIView):
+    async def post(self, request, *args, **kwargs):
+        if resp := self.check_status():
+            return resp
+        project = await self.get_project(request, **kwargs)
 
 
 class EventStoreAPIView(BaseEventAPIView):

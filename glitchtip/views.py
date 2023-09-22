@@ -3,10 +3,9 @@ from django.conf import settings
 from django.http import HttpResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from adrf.views import APIView
 
 from api_tokens.serializers import APITokenAuthScopesSerializer
-from organizations_ext.utils import is_organization_creation_open
 from users.serializers import SocialAppSerializer, UserSerializer
 from users.utils import is_user_registration_open
 
@@ -21,7 +20,7 @@ class SettingsView(APIView):
 
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    async def get(self, request, *args, **kwargs):
         billing_enabled = settings.BILLING_ENABLED
         enable_user_registration = is_user_registration_open()
         enable_organization_creation = settings.ENABLE_ORGANIZATION_CREATION

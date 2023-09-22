@@ -205,6 +205,7 @@ INSTALLED_APPS = [
 if DEBUG_TOOLBAR:
     INSTALLED_APPS.append("debug_toolbar")
 INSTALLED_APPS += [
+    "adrf",
     "rest_framework",
     "drf_yasg",
     "dj_rest_auth",
