@@ -60,7 +60,10 @@ class SocialAppSerializer(serializers.ModelSerializer):
 
     def get_authorize_url(self, obj):
         request = self.context.get("request")
-        adapter = SOCIAL_ADAPTER_MAP.get(obj.provider, obj.provider_id)(request)
+        if obj.provider == "openid_connect":
+            adapter = SOCIAL_ADAPTER_MAP.get(obj.provider)(request, obj.provider_id)
+        else:
+            adapter = SOCIAL_ADAPTER_MAP.get(obj.provider, obj.provider_id)(request)
         if adapter:
             return adapter.authorize_url
 
