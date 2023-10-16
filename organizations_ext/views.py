@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
@@ -10,6 +11,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from organizations_ext.utils import is_organization_creation_open
+from projects.models import Project
 from teams.serializers import TeamSerializer
 
 from .invitation_backend import InvitationTokenGenerator
@@ -51,6 +53,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
         if self.action in ["retrieve"]:
             queryset = queryset.prefetch_related(
+                Prefetch("projects", queryset=Project.undeleted_objects.all()),
                 "projects__team_set__members",
                 "teams__members",
             )
