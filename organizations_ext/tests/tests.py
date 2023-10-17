@@ -3,7 +3,7 @@ from django.test import TestCase
 from model_bakery import baker
 from rest_framework.test import APITestCase
 
-from glitchtip import test_utils  # pylint: disable=unused-import
+from glitchtip.test_utils import generators  # pylint: disable=unused-import
 from organizations_ext.models import OrganizationUser
 
 
@@ -72,6 +72,18 @@ class OrganizationsAPITestCase(APITestCase):
         self.assertTrue(
             "teams" in res.data.keys(), "Retrieve view should contain teams"
         )
+
+    def test_soft_deleted_org_projects_filter(self):
+        url = reverse("organization-detail", args=[self.organization.slug])
+        first_project = baker.make("projects.Project", organization=self.organization)
+        second_project = baker.make("projects.Project", organization=self.organization)
+
+        second_project.is_deleted = True
+        second_project.save()
+
+        res = self.client.get(url)
+        self.assertContains(res, first_project.slug)
+        self.assertNotContains(res, second_project.slug)
 
     def test_organizations_create(self):
         data = {"name": "test"}
