@@ -76,10 +76,7 @@ class OrganizationsAPITestCase(APITestCase):
     def test_soft_deleted_org_projects_filter(self):
         url = reverse("organization-detail", args=[self.organization.slug])
         first_project = baker.make("projects.Project", organization=self.organization)
-        second_project = baker.make("projects.Project", organization=self.organization)
-
-        second_project.is_deleted = True
-        second_project.save()
+        second_project = baker.make("projects.Project", organization=self.organization, is_deleted=True)
 
         res = self.client.get(url)
         self.assertContains(res, first_project.slug)
