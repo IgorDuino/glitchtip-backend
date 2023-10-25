@@ -212,3 +212,45 @@ class OrganizationThrottlingTestCase(TestCase):
         set_organization_throttle()
         organization.refresh_from_db()
         self.assertTrue(organization.is_accepting_events)
+
+    def test_multiple_plan_email(self):
+            """
+            Orgs with a cancelled plan and an active plan will not be throttled. They shouldn't be emailed, either.
+            """
+            # Start with no plan, unthrottled
+            organization = baker.make(
+                "organizations_ext.Organization", is_accepting_events=True
+            )
+            user = baker.make("users.user")
+            organization.add_user(user)
+            organization.refresh_from_db()
+
+
+            # Add old paid plan and active free plan
+            customer = baker.make(
+                "djstripe.Customer", subscriber=organization, livemode=False
+            )
+            free_plan = baker.make("djstripe.Plan", active=True, amount=0)
+            paid_plan = baker.make("djstripe.Plan", active=True, amount=1)
+            baker.make(
+                "djstripe.Subscription",
+                customer=customer,
+                livemode=False,
+                plan=paid_plan,
+                status="canceled",
+                current_period_end=timezone.make_aware(timezone.datetime(2000, 1, 31)),
+            )
+            baker.make(
+                "djstripe.Subscription",
+                customer=customer,
+                livemode=False,
+                plan=free_plan,
+                status="active",
+                current_period_end=timezone.make_aware(timezone.datetime(2100, 1, 31)),
+            )
+
+            # Should not send email
+            set_organization_throttle()
+            organization.refresh_from_db()
+            self.assertTrue(organization.is_accepting_events)
+            self.assertEqual(len(mail.outbox), 0)
