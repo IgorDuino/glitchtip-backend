@@ -1,7 +1,4 @@
 from allauth.account.models import EmailAddress
-from dj_rest_auth.registration.views import (
-    SocialAccountDisconnectView as BaseSocialAccountDisconnectView,
-)
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -192,11 +189,3 @@ class EmailAddressViewSet(
         )
         email_address.send_confirmation(request)
         return Response(status=204)
-
-
-class SocialAccountDisconnectView(BaseSocialAccountDisconnectView):
-    def post(self, request, *args, **kwargs):
-        try:
-            return super().post(request, *args, **kwargs)
-        except ValidationError as e:
-            raise exceptions.ValidationError(e.message)

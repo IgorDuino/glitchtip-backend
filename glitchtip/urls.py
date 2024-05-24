@@ -4,7 +4,6 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 from django.views.generic.base import RedirectView
-from django_rest_mfa.rest_auth_helpers.views import MFALoginView
 from organizations.backends import invitation_backend
 from rest_framework_nested import routers
 
@@ -12,9 +11,7 @@ from apps.organizations_ext.urls import router as organizationsRouter
 from apps.projects.urls import router as projectsRouter
 from apps.teams.urls import router as teamsRouter
 from apps.users.urls import router as usersRouter
-from apps.users.views import SocialAccountDisconnectView
 
-from . import social
 from .api import api
 from .views import APIRootView, health
 
@@ -76,20 +73,8 @@ urlpatterns += [
     path("api/mfa/", include("django_rest_mfa.urls")),
     path("", include("apps.uptime.urls")),
     path("api/test/", include("test_api.urls")),
-    path("rest-auth/login/", MFALoginView.as_view()),
-    path("rest-auth/", include("dj_rest_auth.urls")),
-    path("rest-auth/registration/", include("dj_rest_auth.registration.urls")),
-    re_path(
-        r"^api/socialaccounts/(?P<pk>\d+)/disconnect/$",
-        SocialAccountDisconnectView.as_view(),
-        name="social_account_disconnect",
-    ),
-    path("rest-auth/<slug:provider>/", social.MFASocialLoginView().as_view()),
-    path(
-        "rest-auth/<slug:provider>/connect/",
-        social.GlitchTipSocialConnectView().as_view(),
-    ),
-    path("accounts/", include("allauth.urls")),  # Required for allauth
+    path("accounts/", include("allauth.urls")),
+    path("_allauth/", include("allauth.headless.urls")),
     # These routes belong to the Angular single page app
     re_path(r"^$", TemplateView.as_view(template_name="index.html")),
     re_path(

@@ -203,7 +203,9 @@ INSTALLED_APPS = [
     "django_prometheus",
     "allauth",
     "allauth.account",
+    "allauth.headless",
     "allauth.socialaccount",
+    "allauth.usersessions",
     "allauth.socialaccount.providers.digitalocean",
     "allauth.socialaccount.providers.gitea",
     "allauth.socialaccount.providers.github",
@@ -221,8 +223,6 @@ INSTALLED_APPS = [
 if DEBUG_TOOLBAR:
     INSTALLED_APPS.append("debug_toolbar")
 INSTALLED_APPS += [
-    "dj_rest_auth",
-    "dj_rest_auth.registration",
     "import_export",
     "storages",
     "glitchtip",
@@ -635,8 +635,7 @@ ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_ADAPTER = "glitchtip.social.MFAAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "glitchtip.social.CustomSocialAccountAdapter"
+HEADLESS_ONLY = True
 INVITATION_BACKEND = "apps.organizations_ext.invitation_backend.InvitationBackend"
 SOCIALACCOUNT_PROVIDERS = {}
 if GITLAB_URL := env.url("SOCIALACCOUNT_PROVIDERS_gitlab_GITLAB_URL", None):

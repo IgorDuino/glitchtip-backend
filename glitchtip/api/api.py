@@ -3,7 +3,6 @@ from typing import Optional
 
 import orjson
 from allauth.socialaccount.models import SocialApp
-from allauth.socialaccount.providers.openid_connect.views import OpenIDConnectAdapter
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.http import HttpRequest
@@ -19,7 +18,6 @@ from apps.issue_events.api import router as issue_events_router
 from apps.releases.api import router as releases_router
 from apps.teams.api import router as teams_router
 from apps.users.utils import ais_user_registration_open
-from glitchtip.constants import SOCIAL_ADAPTER_MAP
 
 from ..schema import CamelSchema
 from .authentication import SessionAuth, TokenAuth
