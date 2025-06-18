@@ -14,6 +14,6 @@ def get_domain():
 
 @register.filter()
 @stringfilter
-def sanitize_text(string):
+def stripurlchars(string):
     stripped_text = re.sub(r"\.com|http|\/|\.|\:|\$", "", string)
     return stripped_text[:60]
