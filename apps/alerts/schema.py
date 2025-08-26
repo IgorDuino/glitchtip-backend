@@ -20,6 +20,7 @@ class WebhookAlertRecipientIn(CamelSchema):
         RecipientType.DISCORD,
         RecipientType.GENERAL_WEBHOOK,
         RecipientType.GOOGLE_CHAT,
+        RecipientType.TELEGRAM,
     ]
     url: HttpUrl
     tags_to_add: list[str] | None = Field(default_factory=list)

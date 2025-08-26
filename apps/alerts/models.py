@@ -43,6 +43,7 @@ class AlertRecipient(models.Model):
             RecipientType.DISCORD,
             RecipientType.GENERAL_WEBHOOK,
             RecipientType.GOOGLE_CHAT,
+            RecipientType.TELEGRAM,
         )
 
     def send(self, notification):
