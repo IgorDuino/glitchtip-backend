@@ -16,6 +16,7 @@ from ..tasks import process_event_alerts
 from ..webhooks import (
     send_issue_as_discord_webhook,
     send_issue_as_googlechat_webhook,
+    send_issue_as_telegram_webhook,
     send_issue_as_webhook,
     send_webhook,
 )
@@ -23,6 +24,7 @@ from ..webhooks import (
 TEST_URL = "https://burkesoftware.rocket.chat/hooks/Y8TttGY7RvN7Qm3gD/rqhHLiRSvYRZ8BhbhhhLYumdMksWnyj3Dqsqt8QKrmbNndXH"
 DISCORD_TEST_URL = "https://discord.com/api/webhooks/not_real_id/not_real_token"
 GOOGLE_CHAT_TEST_URL = "https://chat.googleapis.com/v1/spaces/space_id/messages?key=api_key&token=api_token"
+TELEGRAM_TEST_URL = "https://api.telegram.org/bot123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ/sendMessage?chat_id=-1001234567890"
 
 
 class WebhookTestCase(GlitchTipTestCase):
@@ -55,7 +57,7 @@ class WebhookTestCase(GlitchTipTestCase):
 
         key_custom = baker.make("issue_events.TagKey", key="custom_tag")
         custom_value = baker.make("issue_events.TagValue", value="custom_value")
-        
+
         issue = baker.make("issue_events.Issue", level=LogLevel.ERROR)
         baker.make(
             "issue_events.IssueTag",
@@ -112,7 +114,7 @@ class WebhookTestCase(GlitchTipTestCase):
         send_issue_as_webhook(TEST_URL, [issue], 1, tags_to_add=["custom_tag"])
 
         mock_post.assert_called_once()
-        
+
         json_data = json.dumps(mock_post.call_args.kwargs["json"])
         self.assertIn('"title": "Custom_tag", "value": "custom_value"', json_data)
 
@@ -173,7 +175,7 @@ class WebhookTestCase(GlitchTipTestCase):
         baker.make("issue_events.IssueEvent", issue=issue)
         baker.make("issue_events.IssueEvent", issue=issue)
         process_event_alerts()
-        
+
         mock_post.assert_called_once()
         json_data = json.dumps(mock_post.call_args.kwargs["json"])
         self.assertIn('"title": "Custom_tag", "value": "custom_value"', json_data)
@@ -194,10 +196,12 @@ class WebhookTestCase(GlitchTipTestCase):
     @mock.patch("requests.post")
     def test_send_issue_with_tags_as_discord_webhook_with_tags_to_add(self, mock_post):
         issue = self.generate_issue_with_tags()
-        send_issue_as_discord_webhook(DISCORD_TEST_URL, [issue], 1, tags_to_add=["custom_tag"])
+        send_issue_as_discord_webhook(
+            DISCORD_TEST_URL, [issue], 1, tags_to_add=["custom_tag"]
+        )
 
         mock_post.assert_called_once()
-        
+
         json_data = json.dumps(mock_post.call_args.kwargs["json"])
         self.assertIn('"name": "Custom_tag", "value": "custom_value"', json_data)
 
@@ -218,12 +222,16 @@ class WebhookTestCase(GlitchTipTestCase):
         )
 
     @mock.patch("requests.post")
-    def test_send_issue_with_tags_as_googlechat_webhook_with_tags_to_add(self, mock_post):
+    def test_send_issue_with_tags_as_googlechat_webhook_with_tags_to_add(
+        self, mock_post
+    ):
         issue = self.generate_issue_with_tags()
-        send_issue_as_googlechat_webhook(GOOGLE_CHAT_TEST_URL, [issue], tags_to_add=["custom_tag"])
+        send_issue_as_googlechat_webhook(
+            GOOGLE_CHAT_TEST_URL, [issue], tags_to_add=["custom_tag"]
+        )
 
         mock_post.assert_called_once()
-        
+
         json_data = json.dumps(mock_post.call_args.kwargs["json"])
         self.assertIn('"topLabel": "Custom_tag", "text": "custom_value"', json_data)
 
@@ -233,7 +241,7 @@ class WebhookTestCase(GlitchTipTestCase):
             "alerts.AlertRecipient",
             alert=alert,
             recipient_type=RecipientType.GENERAL_WEBHOOK,
-            url="https://example.com/webhook"
+            url="https://example.com/webhook",
         )
         self.assertEqual(recipient.tags_to_add, [])
 
@@ -245,7 +253,7 @@ class WebhookTestCase(GlitchTipTestCase):
             alert=alert,
             recipient_type=RecipientType.GENERAL_WEBHOOK,
             url="https://example.com/webhook",
-            tags_to_add=tags
+            tags_to_add=tags,
         )
         self.assertEqual(recipient.tags_to_add, tags)
 
@@ -360,3 +368,141 @@ class WebhookTestCase(GlitchTipTestCase):
             f'"title": "{self.monitor.name}", "description": "{self.expected_message_up}"',
             json_data,
         )
+
+    @mock.patch("requests.post")
+    def test_send_uptime_events_telegram_webhook(self, mock_post):
+        recipient = baker.make(
+            AlertRecipient, recipient_type=RecipientType.TELEGRAM, url=TELEGRAM_TEST_URL
+        )
+
+        # Test monitor going down
+        send_uptime_as_webhook(
+            recipient,
+            self.monitor_check.id,
+            True,
+            datetime.now(),
+        )
+
+        mock_post.assert_called_once()
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn('"chat_id": "-1001234567890"', json_data)
+        self.assertIn('"parse_mode": "HTML"', json_data)
+        self.assertIn("🔴", json_data)  # Red circle for down
+        self.assertIn(f"{self.expected_subject}", json_data)
+        self.assertIn(f"{self.monitor.name}", json_data)
+        self.assertIn(f"{self.expected_message_down}", json_data)
+
+        mock_post.reset_mock()
+
+        # Test monitor coming back up
+        send_uptime_as_webhook(
+            recipient,
+            self.monitor_check.id,
+            False,
+            datetime.now(),
+        )
+
+        mock_post.assert_called_once()
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn('"chat_id": "-1001234567890"', json_data)
+        self.assertIn('"parse_mode": "HTML"', json_data)
+        self.assertIn("🟢", json_data)  # Green circle for up
+        self.assertIn(f"{self.expected_subject}", json_data)
+        self.assertIn(f"{self.monitor.name}", json_data)
+        self.assertIn(f"{self.expected_message_up}", json_data)
+
+    @mock.patch("requests.post")
+    def test_send_issue_with_tags_as_telegram_webhook(self, mock_post):
+        issue = self.generate_issue_with_tags()
+        send_issue_as_telegram_webhook(TELEGRAM_TEST_URL, [issue])
+
+        mock_post.assert_called_once()
+
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn('"chat_id": "-1001234567890"', json_data)
+        self.assertIn('"parse_mode": "HTML"', json_data)
+        self.assertIn("GlitchTip Alert", json_data)
+        self.assertIn(f"Environment: {self.environment_name}", json_data)
+        self.assertIn(f"Release: {self.release_name}", json_data)
+
+    @mock.patch("requests.post")
+    def test_send_issue_with_tags_as_telegram_webhook_with_tags_to_add(self, mock_post):
+        issue = self.generate_issue_with_tags()
+        send_issue_as_telegram_webhook(
+            TELEGRAM_TEST_URL, [issue], 1, tags_to_add=["custom_tag"]
+        )
+
+        mock_post.assert_called_once()
+
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn("Custom_tag: custom_value", json_data)
+
+    @mock.patch("requests.post")
+    def test_trigger_telegram_webhook(self, mock_post):
+        project = baker.make("projects.Project")
+        alert = baker.make(
+            "alerts.ProjectAlert",
+            project=project,
+            timespan_minutes=1,
+            quantity=2,
+        )
+        baker.make(
+            "alerts.AlertRecipient",
+            alert=alert,
+            recipient_type=RecipientType.TELEGRAM,
+            url=TELEGRAM_TEST_URL,
+        )
+        issue = baker.make("issue_events.Issue", project=project)
+
+        baker.make("issue_events.IssueEvent", issue=issue)
+        process_event_alerts()
+        self.assertEqual(Notification.objects.count(), 0)
+
+        baker.make("issue_events.IssueEvent", issue=issue)
+        process_event_alerts()
+        self.assertEqual(
+            Notification.objects.filter(
+                project_alert__alertrecipient__recipient_type=RecipientType.TELEGRAM
+            ).count(),
+            1,
+        )
+        mock_post.assert_called_once()
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn('"chat_id": "-1001234567890"', json_data)
+        self.assertIn(issue.title, json_data)
+
+    def test_telegram_webhook_url_parsing(self):
+        """Test that chat_id is correctly parsed from different URL formats"""
+        from apps.alerts.webhooks import send_issue_as_telegram_webhook
+
+        # Test with query parameter format
+        url_with_query = (
+            "https://api.telegram.org/bot123:ABC/sendMessage?chat_id=-123456"
+        )
+        issue = self.generate_issue_with_tags()
+
+        with mock.patch("requests.post") as mock_post:
+            send_issue_as_telegram_webhook(url_with_query, [issue])
+            mock_post.assert_called_once()
+            json_data = json.dumps(mock_post.call_args.kwargs["json"])
+            self.assertIn('"chat_id": "-123456"', json_data)
+
+        # Test with path format
+        url_with_path = "https://api.telegram.org/bot123:ABC/sendMessage/-123456"
+        with mock.patch("requests.post") as mock_post:
+            send_issue_as_telegram_webhook(url_with_path, [issue])
+            mock_post.assert_called_once()
+            json_data = json.dumps(mock_post.call_args.kwargs["json"])
+            self.assertIn('"chat_id": "-123456"', json_data)
+
+    def test_telegram_webhook_error_no_chat_id(self):
+        """Test that ValueError is raised when chat_id is not found"""
+        from apps.alerts.webhooks import send_issue_as_telegram_webhook
+
+        url_without_chat_id = "https://api.telegram.org/bot123:ABC/sendMessage"
+        issue = self.generate_issue_with_tags()
+
+        with self.assertRaises(ValueError) as context:
+            send_issue_as_telegram_webhook(url_without_chat_id, [issue])
+
+        self.assertIn("chat_id not found in URL", str(context.exception))

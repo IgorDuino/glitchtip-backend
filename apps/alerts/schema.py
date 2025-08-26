@@ -20,6 +20,7 @@ class WebhookAlertRecipientIn(CamelSchema):
         RecipientType.DISCORD,
         RecipientType.GENERAL_WEBHOOK,
         RecipientType.GOOGLE_CHAT,
+        RecipientType.TELEGRAM,
     ]
     url: HttpUrl
     tags_to_add: list[str] | None = Field(default_factory=list)
@@ -43,12 +44,7 @@ class ProjectAlertIn(CamelSchema, ModelSchema):
 
     class Meta:
         model = ProjectAlert
-        fields = [
-            "name",
-            "timespan_minutes",
-            "quantity",
-            "uptime"
-        ]
+        fields = ["name", "timespan_minutes", "quantity", "uptime"]
 
 
 class ProjectAlertSchema(CamelSchema, ModelSchema):
