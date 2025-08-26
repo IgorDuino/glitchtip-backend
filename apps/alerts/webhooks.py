@@ -193,7 +193,9 @@ class DiscordWebhookPayload:
     embeds: list[DiscordEmbed]
 
 
-def send_issue_as_discord_webhook(url, issues: list, issue_count: int = 1, tags_to_add: list[str] | None = None):
+def send_issue_as_discord_webhook(
+    url, issues: list, issue_count: int = 1, tags_to_add: list[str] | None = None
+):
     if tags_to_add is None:
         tags_to_add = []
 
@@ -313,10 +315,12 @@ class GoogleChatCard:
         ]
         return self
 
-    def construct_issue_card(self, title: str, issue, tags_to_add: list[str] | None = None):
+    def construct_issue_card(
+        self, title: str, issue, tags_to_add: list[str] | None = None
+    ):
         if tags_to_add is None:
             tags_to_add = []
-            
+
         self.header = dict(title=title, subtitle=issue.project.name)
         section_header = "<font color='{}'>{}</font>".format(
             issue.get_hex_color(), str(issue)
@@ -368,7 +372,11 @@ class GoogleChatCard:
                 )
                 if tag_content:
                     widgets.append(
-                        dict(decoratedText=dict(topLabel=tag.capitalize(), text=tag_content["value"]))
+                        dict(
+                            decoratedText=dict(
+                                topLabel=tag.capitalize(), text=tag_content["value"]
+                            )
+                        )
                     )
 
         widgets.append(
@@ -409,7 +417,9 @@ def send_issue_as_googlechat_webhook(url, issues: list, **kwargs):
     cards = []
     for issue in issues:
         card = GoogleChatCard().construct_issue_card(
-            title="GlitchTip Alert", issue=issue, tags_to_add=kwargs.get("tags_to_add", [])
+            title="GlitchTip Alert",
+            issue=issue,
+            tags_to_add=kwargs.get("tags_to_add", []),
         )
         cards.append(card)
     return send_googlechat_webhook(url, cards)
@@ -434,7 +444,9 @@ def send_telegram_webhook(url: str, text: str, chat_id: str):
     return requests.post(url, json=asdict(payload), timeout=10)
 
 
-def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags_to_add: list[str] | None = None):
+def send_issue_as_telegram_webhook(
+    url, issues: list, issue_count: int = 1, tags_to_add: list[str] | None = None
+):
     """
     Format and send issues to Telegram webhook
     URL format: https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}
@@ -444,17 +456,18 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
 
     # Parse chat_id from URL parameters
     from urllib.parse import parse_qs, urlparse
+
     parsed_url = urlparse(url)
     query_params = parse_qs(parsed_url.query)
-    chat_id = query_params.get('chat_id', [''])[0]
-    
+    chat_id = query_params.get("chat_id", [""])[0]
+
     if not chat_id:
         # Try to extract chat_id from URL path if not in query params
         # Format: https://api.telegram.org/bot{token}/sendMessage/{chat_id}
-        path_parts = parsed_url.path.split('/')
-        if len(path_parts) > 1 and path_parts[-1] and path_parts[-1] != 'sendMessage':
+        path_parts = parsed_url.path.split("/")
+        if len(path_parts) > 1 and path_parts[-1] and path_parts[-1] != "sendMessage":
             chat_id = path_parts[-1]
-    
+
     if not chat_id:
         raise ValueError("chat_id not found in URL")
 
@@ -462,17 +475,17 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
     message_parts = ["🚨 <b>GlitchTip Alert</b>"]
     if issue_count > 1:
         message_parts[0] += f" ({issue_count} issues)"
-    
+
     for issue in issues:
         message_parts.append("")  # Empty line
         message_parts.append(f"<b>{issue}</b>")
-        
+
         if issue.culprit:
             message_parts.append(f"<i>{issue.culprit}</i>")
-        
+
         # Add project info
         message_parts.append(f"📁 Project: {issue.project.name}")
-        
+
         # Add environment if available
         environment = (
             issue.issuetag_set.filter(tag_key__key="environment")
@@ -481,7 +494,7 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
         )
         if environment:
             message_parts.append(f"🌍 Environment: {environment['value']}")
-        
+
         # Add server name if available
         server_name = (
             issue.issuetag_set.filter(tag_key__key="server_name")
@@ -490,7 +503,7 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
         )
         if server_name:
             message_parts.append(f"🖥️ Server: {server_name['value']}")
-        
+
         # Add release if available
         release = (
             issue.issuetag_set.filter(tag_key__key="release")
@@ -499,7 +512,7 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
         )
         if release:
             message_parts.append(f"🚀 Release: {release['value']}")
-        
+
         # Add custom tags
         if tags_to_add:
             for tag in tags_to_add:
@@ -509,35 +522,43 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
                     .first()
                 )
                 if tag_content:
-                    message_parts.append(f"🏷️ {tag.capitalize()}: {tag_content['value']}")
-        
+                    message_parts.append(
+                        f"🏷️ {tag.capitalize()}: {tag_content['value']}"
+                    )
+
         # Add link to issue
         issue_url = issue.get_detail_url()
         if issue_url:
-            message_parts.append(f"🔗 <a href=\"{issue_url}\">View Issue {issue.short_id_display}</a>")
-    
+            message_parts.append(
+                f'🔗 <a href="{issue_url}">View Issue {issue.short_id_display}</a>'
+            )
+
     text = "\n".join(message_parts)
-    
+
     # Remove chat_id from URL to get the base API URL
-    base_url = url.split('?')[0]  # Remove query parameters
+    base_url = url.split("?")[0]  # Remove query parameters
     if base_url.endswith(f"/{chat_id}"):
-        base_url = base_url[:-len(f"/{chat_id}")]
-    
+        base_url = base_url[: -len(f"/{chat_id}")]
+
     return send_telegram_webhook(base_url, text, chat_id)
 
 
 def send_webhook_notification(
-    notification: "Notification", url: str, recipient_type: str, tags_to_add: list[str] | None = None
+    notification: "Notification",
+    url: str,
+    recipient_type: str,
+    tags_to_add: list[str] | None = None,
 ):
     issue_count = notification.issues.count()
     issues = notification.issues.all()[: settings.MAX_ISSUES_PER_ALERT]
-
 
     if recipient_type == RecipientType.DISCORD:
         send_issue_as_discord_webhook(url, issues, issue_count, tags_to_add=tags_to_add)
     elif recipient_type == RecipientType.GOOGLE_CHAT:
         send_issue_as_googlechat_webhook(url, issues, tags_to_add=tags_to_add)
     elif recipient_type == RecipientType.TELEGRAM:
-        send_issue_as_telegram_webhook(url, issues, issue_count, tags_to_add=tags_to_add)
+        send_issue_as_telegram_webhook(
+            url, issues, issue_count, tags_to_add=tags_to_add
+        )
     else:
         send_issue_as_webhook(url, issues, issue_count, tags_to_add=tags_to_add)
