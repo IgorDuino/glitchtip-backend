@@ -452,7 +452,7 @@ def send_issue_as_telegram_webhook(url, issues: list, issue_count: int = 1, tags
         # Try to extract chat_id from URL path if not in query params
         # Format: https://api.telegram.org/bot{token}/sendMessage/{chat_id}
         path_parts = parsed_url.path.split('/')
-        if len(path_parts) > 1 and path_parts[-1]:
+        if len(path_parts) > 1 and path_parts[-1] and path_parts[-1] != 'sendMessage':
             chat_id = path_parts[-1]
     
     if not chat_id:

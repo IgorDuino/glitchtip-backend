@@ -364,6 +364,48 @@ class WebhookTestCase(GlitchTipTestCase):
         )
 
     @mock.patch("requests.post")
+    def test_send_uptime_events_telegram_webhook(self, mock_post):
+        recipient = baker.make(
+            AlertRecipient, recipient_type=RecipientType.TELEGRAM, url=TELEGRAM_TEST_URL
+        )
+
+        # Test monitor going down
+        send_uptime_as_webhook(
+            recipient,
+            self.monitor_check.id,
+            True,
+            datetime.now(),
+        )
+
+        mock_post.assert_called_once()
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn('"chat_id": "-1001234567890"', json_data)
+        self.assertIn('"parse_mode": "HTML"', json_data)
+        self.assertIn("🔴", json_data)  # Red circle for down
+        self.assertIn(f"{self.expected_subject}", json_data)
+        self.assertIn(f"{self.monitor.name}", json_data)
+        self.assertIn(f"{self.expected_message_down}", json_data)
+
+        mock_post.reset_mock()
+
+        # Test monitor coming back up
+        send_uptime_as_webhook(
+            recipient,
+            self.monitor_check.id,
+            False,
+            datetime.now(),
+        )
+
+        mock_post.assert_called_once()
+        json_data = json.dumps(mock_post.call_args.kwargs["json"])
+        self.assertIn('"chat_id": "-1001234567890"', json_data)
+        self.assertIn('"parse_mode": "HTML"', json_data)
+        self.assertIn("🟢", json_data)  # Green circle for up
+        self.assertIn(f"{self.expected_subject}", json_data)
+        self.assertIn(f"{self.monitor.name}", json_data)
+        self.assertIn(f"{self.expected_message_up}", json_data)
+
+    @mock.patch("requests.post")
     def test_send_issue_with_tags_as_telegram_webhook(self, mock_post):
         issue = self.generate_issue_with_tags()
         send_issue_as_telegram_webhook(TELEGRAM_TEST_URL, [issue])
